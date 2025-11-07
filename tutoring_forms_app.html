@@ -1,0 +1,508 @@
+<!DOCTYPE html>
+<!--
+    Based on the "Triage" app.
+    Modified to generate individual student tutoring sign-off forms.
+-->
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!-- (MODIFIED) Title -->
+    <title>Beacon</title>
+    <!-- (MODIFIED) Beacon SVG Favicon -->
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cpath d='M40,90 L30,70 H70 L60,90 H40 Z' fill='%232563eb'/%3E%3Cpath d='M40,70 V30 H60 V70 H40 Z' fill='%232563eb'/%3E%3Cpath d='M50,25 a5,5 0 1 1 0,-10 a5,5 0 0 1 0,10 Z' fill='%23fbbf24'/%3E%3Cpath d='M20,20 L45,15' stroke='%23fbbf24' stroke-width='4'/%3E%3Cpath d='M80,20 L55,15' stroke='%23fbbf24' stroke-width='4'/%3E%3C/svg%3E" type="image/svg+xml">
+    <!-- 1. Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- 2. PapaParse (CSV Parsing Library) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
+    <style>
+        /* Custom styles for the file drop zone */
+        #drop-zone {
+            border: 2px dashed #cbd5e0;
+            transition: all 0.3s ease;
+        }
+        #drop-zone.drag-over {
+            border-color: #3b82f6;
+            background-color: #eff6ff;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 font-sans antialiased">
+
+    <div class="container mx-auto p-4 sm:p-8 max-w-3xl">
+        <div class="bg-white rounded-2xl shadow-xl p-6 sm:p-10">
+            
+            <header class="text-center mb-8">
+                <!-- (MODIFIED) Title and subtitle -->
+                <h1 class="text-3xl sm:text-4xl font-bold text-gray-800">Beacon</h1>
+                <p class="text-gray-600 mt-2">Student Tutoring Form Generator</p>
+            </header>
+
+            <!-- Step 1: Upload -->
+            <div class="mb-6">
+                <label class="block text-lg font-semibold text-gray-700 mb-2">1. Upload File</label>
+                <!-- (MODIFIED) Updated required columns -->
+                <p class="text-sm text-gray-500 mb-3">CSV file must contain: <code class="bg-gray-200 p-1 rounded text-xs">student_Id</code>, <code class="bg-gray-200 p-1 rounded text-xs">Student_FirstName</code>, <code class="bg-gray-200 p-1 rounded text-xs">Student_LastName</code>, <code class="bg-gray-200 p-1 rounded text-xs">course_code</code>, <code class="bg-gray-200 p-1 rounded text-xs">markingPeriod_Average</code>, and <code class="bg-gray-200 p-1 rounded text-xs">Teachers</code>.</p>
+                
+                <div id="drop-zone" class="relative rounded-lg p-10 text-center cursor-pointer bg-gray-50 hover:bg-gray-100">
+                    <!-- (MODIFIED) Removed 'multiple' to simplify to one file -->
+                    <input type="file" id="file-input" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer" accept=".csv">
+                    <div class="flex flex-col items-center justify-center space-y-3 pointer-events-none">
+                        <svg class="w-12 h-12 text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 16.5V9.75m0 0l-3 3m3-3l3 3M6.75 19.5a4.5 4.5 0 01-1.41-8.775 5.25 5.25 0 0110.233-2.33 3 3 0 013.758 3.848A3.752 3.752 0 0118 19.5H6.75z" />
+                        </svg>
+                        <p class="text-gray-600">
+                            <span class="font-semibold text-blue-600">Click to upload</span> or drag and drop
+                        </p>
+                        <p class="text-xs text-gray-500">CSV file only</p>
+                    </div>
+                </div>
+                <div id="file-list" class="mt-4 text-sm text-gray-700"></div>
+            </div>
+
+            <!-- Step 2: Settings -->
+            <div class="mb-8">
+                <label class="block text-lg font-semibold text-gray-700 mb-2">2. Settings</label>
+                
+                <!-- Passing Grade -->
+                <div class="mb-4">
+                    <label for="passing-grade" class="block text-sm font-medium text-gray-600 mb-1">Set Passing Grade</label>
+                    <p class="text-xs text-gray-500 mb-2">Any grade <span class="font-bold">below</span> this value will be counted as failing.</p>
+                    <input type="number" id="passing-grade" value="65" class="w-32 p-2 border border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500">
+                </div>
+
+                <!-- (NEW) Sort Order -->
+                <div class="mb-4">
+                    <label for="sort-order" class="block text-sm font-medium text-gray-600 mb-1">Set Priority By</label>
+                    <p class="text-xs text-gray-500 mb-2">Sort each student's class list by grade.</p>
+                    <select id="sort-order" class="p-2 border border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500">
+                        <option value="asc" selected>Ascending Grade (Lowest first)</option>
+                        <option value="desc">Descending Grade (Highest first)</option>
+                    </select>
+                </div>
+                
+                <!-- Download Template Link -->
+                <div class="mt-4">
+                    <a href="#" id="download-template" class="text-blue-600 hover:text-blue-800 hover:underline text-sm font-medium">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-5 h-5 inline-block -mt-1 mr-1">
+                            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm.75-11.25a.75.75 0 00-1.5 0v4.59L7.3 9.7a.75.75 0 00-1.1 1.02l3.25 3.5a.75.75 0 001.1 0l3.25-3.5a.75.75 0 10-1.1-1.02l-1.95 2.1V6.75z" clip-rule="evenodd" />
+                        </svg>
+                        Download CSV template
+                    </a>
+                </div>
+            </div>
+
+            <!-- Step 3: Generate -->
+            <div>
+                <button id="generate-btn" class="w-full bg-blue-600 text-white font-bold py-3 px-6 rounded-lg shadow-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-all duration-300 flex items-center justify-center">
+                    <svg id="icon-default" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6 mr-2">
+                        <!-- (MODIFIED) Icon -->
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
+                    </svg>
+                    <svg id="icon-loading" class="animate-spin -ml-1 mr-3 h-5 w-5 text-white hidden" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    <!-- (MODIFIED) Button text -->
+                    <span id="btn-text">Generate Forms in New Window</span>
+                </button>
+                <p id="status-msg" class="text-center text-red-500 mt-4 h-5"></p>
+            </div>
+        </div>
+    </div>
+
+
+    <script>
+        // --- Globals ---
+        const dropZone = document.getElementById('drop-zone');
+        const fileInput = document.getElementById('file-input');
+        const fileListDisplay = document.getElementById('file-list');
+        const passingGradeInput = document.getElementById('passing-grade');
+        const sortOrderInput = document.getElementById('sort-order'); // (NEW)
+        const generateBtn = document.getElementById('generate-btn');
+        const statusMsg = document.getElementById('status-msg');
+        const downloadTemplateBtn = document.getElementById('download-template');
+        
+        // Button loading state elements
+        const iconDefault = document.getElementById('icon-default');
+        const iconLoading = document.getElementById('icon-loading');
+        const btnText = document.getElementById('btn-text');
+
+        let uploadedFile = null; // (MODIFIED) Changed to single file
+
+        // --- Drag and Drop Logic ---
+        dropZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropZone.classList.add('drag-over');
+        });
+        dropZone.addEventListener('dragleave', () => {
+            dropZone.classList.remove('drag-over');
+        });
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('drag-over');
+            // (MODIFIED) Get only the first file
+            const file = Array.from(e.dataTransfer.files).find(f => f.type === 'text/csv' || f.name.endsWith('.csv'));
+            handleFile(file);
+        });
+        fileInput.addEventListener('change', () => {
+            // (MODIFIED) Get only the first file
+            const file = fileInput.files[0];
+            handleFile(file);
+        });
+
+        function handleFile(file) {
+            if (file) {
+                uploadedFile = file;
+                fileListDisplay.innerHTML = `<strong>Selected file:</strong> ${uploadedFile.name}`;
+                statusMsg.textContent = '';
+            } else {
+                uploadedFile = null;
+                fileListDisplay.innerHTML = '';
+            }
+        }
+
+        // --- (MODIFIED) Download Template Logic ---
+        downloadTemplateBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            
+            // (MODIFIED) Added Teachers column
+            const headers = "student_Id,Student_FirstName,Student_LastName,course_code,markingPeriod_Average,Teachers";
+            const exampleRow = "200000001,John,Doe,MGS21,62.5,Smith Jane(JSmith)";
+            const csvContent = `${headers}\n${exampleRow}`;
+            
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement("a");
+            const url = URL.createObjectURL(blob);
+            link.setAttribute("href", url);
+            link.setAttribute("download", "tutoring_template.csv");
+            link.style.visibility = 'hidden';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        });
+
+        // --- Button Click ---
+        generateBtn.addEventListener('click', async () => {
+            // (MODIFIED) Check single file
+            if (!uploadedFile) {
+                statusMsg.textContent = 'Error: Please upload a CSV file.';
+                return;
+            }
+
+            setLoadingState(true);
+            
+            try {
+                const passingGrade = parseFloat(passingGradeInput.value) || 65.0;
+                const sortOrder = sortOrderInput.value; // (NEW) Get sort order
+                
+                // 1. Process data
+                const failingStudentsMap = await processStudentData(uploadedFile, passingGrade);
+                
+                // 2. (NEW) Process and sort students
+                const sortedStudents = processFailingStudents(failingStudentsMap, sortOrder);
+                
+                // 3. (MODIFIED) Generate HTML string
+                const reportHTML = generateFormsHTML(sortedStudents, passingGrade);
+                
+                // 4. Open the HTML in a new window
+                const newWindow = window.open('', '_blank');
+                if (newWindow) {
+                    newWindow.document.write(reportHTML);
+                    newWindow.document.close();
+                    statusMsg.textContent = 'Forms generated in new tab!';
+                    setTimeout(() => { statusMsg.textContent = ''; }, 3000);
+                } else {
+                    throw new Error('Could not open new window. Please disable pop-up blockers.');
+                }
+
+            } catch (error) {
+                console.error('Error during form generation:', error);
+                statusMsg.textContent = `Error: ${error.message}`;
+            } finally {
+                setLoadingState(false);
+            }
+        });
+
+        function setLoadingState(isLoading) {
+            if (isLoading) {
+                btnText.textContent = 'Processing...';
+                iconDefault.classList.add('hidden');
+                iconLoading.classList.remove('hidden');
+                generateBtn.disabled = true;
+                statusMsg.textContent = 'Parsing file and building forms...';
+            } else {
+                // (MODIFIED) Button text
+                btnText.textContent = 'Generate Forms in New Window';
+                iconDefault.classList.remove('hidden');
+                iconLoading.classList.add('hidden');
+                generateBtn.disabled = false;
+                statusMsg.textContent = '';
+            }
+        }
+
+        // --- (NEW) Helper function (ported from Python) ---
+        function cleanTeacherName(name) {
+            if (!name) {
+                return "No Teacher";
+            }
+            // Use regex to find the first opening parenthesis and split on it
+            return String(name).split(/\s*\(/)[0].trim();
+        }
+
+        // --- (MODIFIED) Core Logic ---
+
+        function processStudentData(file, passingGrade) {
+            const failingStudents = new Map();
+
+            return new Promise((resolve, reject) => {
+                Papa.parse(file, {
+                    header: true,
+                    skipEmptyLines: true,
+                    step: (row) => {
+                        try {
+                            const data = row.data;
+                            const studentId = data.student_Id?.trim();
+                            if (!studentId) return;
+
+                            const gradeStr = data.markingPeriod_Average?.trim();
+                            if (!gradeStr) return;
+
+                            const grade = parseFloat(gradeStr);
+                            if (isNaN(grade)) return; 
+
+                            if (grade < passingGrade) {
+                                const firstName = data.Student_FirstName?.trim() || '';
+                                const lastName = data.Student_LastName?.trim() || '';
+                                const studentName = `${firstName} ${lastName}`;
+                                const courseCode = data.course_code?.trim() || 'N/A';
+                                // (NEW) Get and clean teacher name
+                                const teacherName = cleanTeacherName(data.Teachers);
+
+                                if (!failingStudents.has(studentId)) {
+                                    failingStudents.set(studentId, {
+                                        id: studentId,
+                                        name: studentName,
+                                        courses: {}
+                                    });
+                                }
+                                
+                                // (MODIFIED) Store grade and teacher
+                                failingStudents.get(studentId).courses[courseCode] = {
+                                    grade: grade,
+                                    teacher: teacherName
+                                };
+                            }
+                        } catch (e) {
+                            console.warn('Skipping row due to error:', e, row.data);
+                        }
+                    },
+                    complete: () => resolve(failingStudents),
+                    error: (err) => reject(err)
+                });
+            });
+        }
+
+        // (NEW) Function to process the map into a sorted array
+        function processFailingStudents(failingStudentsMap, sortOrder) {
+            const studentsArray = [];
+
+            failingStudentsMap.forEach((data, studentId) => {
+                const coursesList = Object.entries(data.courses).map(([code, details]) => {
+                    return {
+                        course: code,
+                        grade: details.grade,
+                        teacher: details.teacher
+                    };
+                });
+                
+                // Sort courses based on user selection
+                if (sortOrder === 'asc') {
+                    coursesList.sort((a, b) => a.grade - b.grade); // Lowest first
+                } else {
+                    coursesList.sort((a, b) => b.grade - a.grade); // Highest first
+                }
+
+                studentsArray.push({
+                    id: studentId,
+                    name: data.name,
+                    courses: coursesList
+                });
+            });
+
+            // Sort students alphabetically by name
+            studentsArray.sort((a, b) => a.name.localeCompare(b.name));
+            
+            return studentsArray;
+        }
+
+        // (MODIFIED) This function now generates the individual forms
+        function generateFormsHTML(sortedStudents, passingGrade) {
+            let html = `
+            <!DOCTYPE html>
+            <html lang="en">
+            <head>
+                <meta charset="UTF-8">
+                <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                <title>Student Tutoring Forms</title>
+                <style>
+                    /* --- (MODIFIED) Font sizes increased --- */
+                    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; margin: 0; padding: 0; background-color: #f3f4f6; }
+                    .form-container {
+                        width: 8.5in;
+                        min-height: 11in;
+                        padding: 0.75in;
+                        margin: 20px auto;
+                        background: white;
+                        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+                        box-sizing: border-box; /* Important for padding */
+                    }
+                    h1 { font-size: 24px; font-weight: bold; margin-bottom: 10px; color: #111827; text-align: center; }
+                    h2 { font-size: 20px; font-weight: bold; margin-top: 26px; margin-bottom: 14px; color: #1f2937; border-bottom: 1px solid #e5e7eb; padding-bottom: 4px; }
+                    p { font-size: 16px; color: #4b5563; margin-bottom: 16px; line-height: 1.5; }
+                    .student-name { font-size: 18px; font-weight: bold; color: #111827; }
+                    
+                    .priority-item { margin-bottom: 14px; }
+                    .priority-label { font-size: 17px; font-weight: bold; color: #374151; }
+                    .priority-details { font-size: 16px; color: #4b5563; padding-left: 20px; }
+                    
+                    .sign-off-section .checkbox {
+                        font-size: 16px;
+                        margin-bottom: 12px;
+                    }
+                    .sign-off-section .signature-line {
+                        font-size: 16px;
+                        margin-top: 30px;
+                        color: #374151;
+                    }
+                    /* --- End of font size changes --- */
+                    
+                    .page-break { page-break-after: always; }
+                    
+                    /* Print-specific styles */
+                    @media print {
+                        #print-controls { display: none; }
+                        body { margin: 0; padding: 0; background-color: white; }
+                        .form-container {
+                            box-shadow: none;
+                            margin: 0;
+                            padding: 0.5in; /* Reduce padding slightly for print */
+                            width: 100%;
+                            min-height: 0;
+                            page-break-after: always;
+                        }
+                        /* Ensure the last form doesn't have a break after it */
+                        .form-container:last-child {
+                            page-break-after: auto;
+                        }
+                    }
+
+                    /* Button styles */
+                    #print-btn {
+                        background-color: #2563eb;
+                        color: white;
+                        font-weight: bold;
+                        padding: 12px 20px;
+                        border: none;
+                        border-radius: 8px;
+                        cursor: pointer;
+                        font-size: 16px;
+                        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+                        transition: background-color 0.3s ease;
+                    }
+                    #print-btn:hover { background-color: #1d4ed8; }
+                    #print-controls {
+                        margin-bottom: 30px;
+                        padding: 20px;
+                        background-color: #f9fafb;
+                        border-radius: 8px;
+                        border: 1px solid #e5e7eb;
+                        text-align: center;
+                        /* Make it stick to the top on screen */
+                        position: sticky;
+                        top: 0;
+                        z-index: 10;
+                    }
+                </style>
+            </head>
+            <body>
+                <div id="print-controls">
+                    <p style="font-size: 16px; font-weight: 500; margin-bottom: 15px;">${sortedStudents.length} forms generated successfully.</p>
+                    <button id="print-btn" onclick="window.print()">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" style="width: 20px; height: 20px; display: inline-block; margin-right: 8px; vertical-align: middle;">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M6.72 13.829c-.24.03-.48.062-.72.096m.72-.096a42.415 42.415 0 0110.56 0m-10.56 0L6.34 18m10.94-4.171c.24.03.48.062.72.096m-.72-.096L17.66 18m0 0l.229 2.523a1.125 1.125 0 01-1.12 1.227H7.23a1.125 1.125 0 01-1.12-1.227L6.34 18m11.32 0c.09.263.16.526.21.791A1.125 1.125 0 0117.25 21H6.75a1.125 1.125 0 01-1.01-1.409c.05-.265.12-.528.21-.79m0 0A42.15 42.15 0 0112 13.829c2.318 0 4.54.386 6.58.991m-13.16 0A42.15 42.15 0 0112 13.829c-2.318 0-4.54.386-6.58.991M12 6a3 3 0 110-6 3 3 0 010 6zm-7.071 5.929A3 3 0 014.07 15H2.25A2.25 2.25 0 010 12.75V11.5a3 3 0 013-3h.071c.07-.53.18-1.05.32-1.571m13.2 0c.14.52.25 1.04.32 1.571h.071a3 3 0 013 3v1.25a2.25 2.25 0 01-2.25 2.25h-1.82c.002-.132.002-.264 0-.396a3 3 0 011.07-2.121" />
+                        </svg>
+                        Print All Forms
+                    </button>
+                    <p style="font-size: 12px; color: #6b7281; margin-top: 15px;">Each form will be printed on a separate page.</p>
+                </div>
+
+                <!-- (MODIFIED) Report Content: Loop of forms -->
+                <div id="forms-wrapper">
+                    ${sortedStudents.map(student => renderStudentFormHTML(student)).join('')}
+                </div>
+            </body>
+            </html>
+            `;
+            return html;
+        }
+
+        // (NEW) This function renders a single student's form
+        function renderStudentFormHTML(student) {
+            let p1 = student.courses[0];
+            let p2 = student.courses.length > 1 ? student.courses[1] : null;
+
+            return `
+            <div class="form-container">
+                <h1>MANDATED TUTORING ATTENDANCE FORM</h1>
+                <p style="text-align: center; margin-top: -5px; font-size: 14px; color: #6b7281;">Generated: ${new Date().toLocaleDateString()}</p>
+                
+                <p class="student-name" style="margin-top: 20px;">Student Name: ${student.name}</p>
+                
+                <p>You are required to attend tutoring for the classes listed below. Please have one of the teachers from your <strong>Priority 1</strong> or <strong>Priority 2</strong> class sign this form to confirm your attendance.</p>
+
+                <h2>Your Priority List</h2>
+                ${student.courses.map((course, index) => `
+                    <div class="priority-item">
+                        <div class="priority-label">Priority ${index + 1}:</div>
+                        <div class="priority-details">
+                            <strong>Class:</strong> ${course.course}<br>
+                            <strong>Teacher:</strong> ${course.teacher}<br>
+                            <strong>Grade:</strong> ${course.grade.toFixed(2)}
+                        </div>
+                    </div>
+                `).join('')}
+                
+                <h2 class="sign-off-section">Teacher Sign-Off (Priority 1 or 2)</h2>
+                <p>I confirm that this student attended a tutoring session with me.</p>
+                
+                <div class="checkbox">
+                    <input type="checkbox" id="p1_${student.id}" disabled>
+                    <label for="p1_${student.id}"><strong>Priority 1:</strong> ${p1.teacher} (${p1.course})</label>
+                </div>
+                
+                ${p2 ? `
+                <div class="checkbox">
+                    <input type="checkbox" id="p2_${student.id}" disabled>
+                    <label for="p2_${student.id}"><strong>Priority 2:</strong> ${p2.teacher} (${p2.course})</label>
+                </div>
+                ` : ''}
+
+                <div class="signature-line">
+                    Teacher Signature: __________________________________________________
+                </div>
+
+                <div class="signature-line">
+                    Date: ________________________________
+                </div>
+
+                <div class="signature-line">
+                    Duration of Time: ________________________
+                </div>
+            </div>
+            `;
+        }
+
+    </script>
+</body>
+</html>
